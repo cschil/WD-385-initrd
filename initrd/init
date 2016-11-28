@@ -36,14 +36,11 @@ rescue_shell() {
 ask_for_stop () {
 	key='boot'
 	read -r -p "### Press any key to stop and run shell... (2)" -n1 -t2 key
-	if [ "$key" != 'boot' ] || [ $BUTTON_STATUS == 1 ]; then
+	if [ "$key" != 'boot' ] ; then
 		rescue_shell
 	fi
 }
 
-
-# Do your stuff here.
-echo "This script just mounts and boots the rootfs, nothing else!"
 
 # Mount the root filesystem.
 ubiattach /dev/ubi_ctrl -m 5
@@ -66,8 +63,9 @@ sleep 1
 cp /mnt/config/mac_addr /mnt/root/etc
 
 # Boot the real thing.
-if [ -f /mnt/root/sbin/init];
- then
+if [ -f /mnt/root/sbin/init ];
+ then	
+	echo "Unmounting and Switch to OS"
 	umount /mnt/config
 	umount /proc
 	umount /sys
