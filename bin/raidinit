@@ -1,0 +1,6 @@
+#!/bin/busybox sh
+
+sleep 2 # disk not ready?
+mdadm --assemble --scan
+sleep 2
+echo "Raid init?"

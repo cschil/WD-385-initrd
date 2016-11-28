@@ -1,0 +1,84 @@
+#!/bin/busybox sh
+# Author: Carl Schiller
+# Mail:schreibcarl@gmail.com
+
+#Install Busybox
+/bin/busybox --install -s
+
+# Mount the /proc and /sys filesystems.
+mount -t proc none /proc
+mount -t sysfs none /sys
+mount -t devtmpfs none /dev
+echo 0 > /proc/sys/kernel/printk
+
+# Adding mdev support
+echo /sbin/mdev > /proc/sys/kernel/hotplug
+mdev -s
+
+#rescue_shell
+rescue_shell() {
+	echo "Something went wrong. Dropping to a shell."
+
+#setting up network
+	/sbin/getmac
+	ifconfig eth0 up
+	udhcpc -t 5 -q -s /bin/simple.script
+	#start ssh	
+	dropbear -b /etc/dropbear/banner
+
+# Run UART shell
+	exec 0</dev/console
+	exec 1>/dev/console
+	exec 2>/dev/console
+	exec setsid cttyhack ash
+}
+
+ask_for_stop () {
+	key='boot'
+	read -r -p "### Press any key to stop and run shell... (2)" -n1 -t2 key
+	if [ "$key" != 'boot' ] || [ $BUTTON_STATUS == 1 ]; then
+		rescue_shell
+	fi
+}
+
+
+# Do your stuff here.
+echo "This script just mounts and boots the rootfs, nothing else!"
+
+# Mount the root filesystem.
+ubiattach /dev/ubi_ctrl -m 5
+sleep 2
+mount -t ubifs ubi0:config /mnt/config
+
+#Initial Raid
+echo 'DEVICE /dev/sd??*' > /etc/mdadm.conf
+mdadm -Eb /dev/sd??* >> /etc/mdadm.conf
+mdadm -As --force
+sleep 2 # disk not ready?
+mdadm --assemble --scan
+
+#Mount Root
+ask_for_stop
+mount -o rw $(findfs LABEL=rootfs)  /mnt/root || rescue_shell
+
+# Copy MAC
+sleep 1
+cp /mnt/config/mac_addr /mnt/root/etc
+
+# Boot the real thing.
+if [ -f /mnt/root/sbin/init];
+ then
+	umount /mnt/config
+	umount /proc
+	umount /sys
+	umount /dev
+	exec switch_root /mnt/root /sbin/init 
+ else 
+	rescue_shell
+fi
+
+# Clean up.
+
+
+
+
