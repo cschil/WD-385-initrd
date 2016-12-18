@@ -1,82 +1,84 @@
 #!/bin/busybox sh
-# Author: Carl Schiller
-# Mail:schreibcarl@gmail.com
 
-#Install Busybox
-/bin/busybox --install -s
+# Install Busybox
+/bin/busybox mkdir -p /usr/sbin /usr/bin /sbin /bin
+/bin/busybox --install -s 
 
 # Mount the /proc and /sys filesystems.
 mount -t proc none /proc
 mount -t sysfs none /sys
 mount -t devtmpfs none /dev
-echo 0 > /proc/sys/kernel/printk
 
 # Adding mdev support
 echo /sbin/mdev > /proc/sys/kernel/hotplug
 mdev -s
 
+#setting up network
+#ifconfig eth2 up
+#udhcpc -t 5 -q -s /bin/simple.script
+
 #rescue_shell
 rescue_shell() {
-	echo "Something went wrong. Dropping to a shell."
 
-#setting up network
+  #setting up network
 	/sbin/getmac
 	ifconfig eth0 up
 	udhcpc -t 5 -q -s /bin/simple.script
-	#start ssh	
-	dropbear -b /etc/dropbear/banner
+
+#start ssh	
+	dropbear -B -R -b /etc/dropbear/banner
+	echo "Something went wrong. Dropping to a shell."
 
 # Run UART shell
 	exec 0</dev/console
 	exec 1>/dev/console
 	exec 2>/dev/console
-	exec setsid cttyhack ash
+	exec setsid cttyhack sh
 }
+
 
 ask_for_stop () {
 	key='boot'
-	read -r -p "### Press any key to stop and run shell... (2)" -n1 -t2 key
-	if [ "$key" != 'boot' ] ; then
+	read -r -p "### Press any key to stop and run shell... (10)" -n1 -t2 key
+	if [ "$key" != 'boot' ] || [ $BUTTON_STATUS == 1 ]; then
 		rescue_shell
 	fi
 }
 
 
-# Mount the root filesystem.
-ubiattach /dev/ubi_ctrl -m 5
-sleep 2
-mount -t ubifs ubi0:config /mnt/config
 
 #Initial Raid
 echo 'DEVICE /dev/sd??*' > /etc/mdadm.conf
 mdadm -Eb /dev/sd??* >> /etc/mdadm.conf
 mdadm -As --force
-sleep 2 # disk not ready?
+sleep 5 # disk not ready?
 mdadm --assemble --scan
 
-#Mount Root
+# Mount the config files
+ubiattach /dev/ubi_ctrl -m 5
+sleep 2
+mount -t ubifs ubi0:config /mnt/config
+
+# Mount the root filesystem.
 ask_for_stop
-mount -o rw $(findfs LABEL=rootfs)  /mnt/root || rescue_shell
-
-# Copy MAC
-sleep 1
-cp /mnt/config/mac_addr /mnt/root/etc
-
-# Boot the real thing.
-if [ -f /mnt/root/sbin/init ];
- then	
-	echo "Unmounting and Switch to OS"
-	umount /mnt/config
-	umount /proc
-	umount /sys
-	umount /dev
-	exec switch_root /mnt/root /sbin/init 
- else 
-	rescue_shell
-fi
+mount -o rw $(findfs LABEL=rootfs)  /mnt/root
 
 # Clean up.
+ls mnt/root/sbin/init >/dev/null 2>&1
+if [ $?=0 ]; then
+        echo "Unmounting and Switch to OS"
+        # Copy MAC
+        sleep 1
+        cp /mnt/config/mac_addr /mnt/root/etc
+        umount /mnt/config
+        umount /proc
+        umount /sys
+        umount /dev
+        exec switch_root /mnt/root /sbin/init
+ else
+        rescue_shell
+fi
 
-
-
+# Boot the real thing.
+exec switch_root /mnt/root /sbin/init
 

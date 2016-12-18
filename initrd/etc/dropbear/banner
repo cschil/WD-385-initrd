@@ -1,4 +1,5 @@
 ========RESCUE SHELL========
-User     root
-Password root
+user        root
+password    blank
 ============================
+
