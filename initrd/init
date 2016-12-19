@@ -1,7 +1,10 @@
 #!/bin/busybox sh
-
-# Install Busybox
-/bin/busybox mkdir -p /usr/sbin /usr/bin /sbin /bin /run
+# Initrd for WD Mycloud Mirror gen2 & Ex2 ultra
+# Boots from partition labeled "rootfs" 
+# (c) Carl Schiller; schreibcarl@gmail.com
+  
+# Creat folders and install Busybox 
+/bin/busybox mkdir -p /dev /mnt/root /mnt/config /proc /root /usr/sbin /usr/bin /sbin /bin /sys /run
 /bin/busybox --install -s 
 
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin
