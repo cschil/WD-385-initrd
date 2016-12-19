@@ -1,8 +1,10 @@
 #!/bin/busybox sh
 
 # Install Busybox
-/bin/busybox mkdir -p /usr/sbin /usr/bin /sbin /bin
+/bin/busybox mkdir -p /usr/sbin /usr/bin /sbin /bin /run
 /bin/busybox --install -s 
+
+export PATH=/bin:/sbin:/usr/bin:/usr/sbin
 
 # Mount the /proc and /sys filesystems.
 mount -t proc none /proc
@@ -13,46 +15,70 @@ mount -t devtmpfs none /dev
 echo /sbin/mdev > /proc/sys/kernel/hotplug
 mdev -s
 
-#setting up network
-#ifconfig eth2 up
-#udhcpc -t 5 -q -s /bin/simple.script
+# Start decryption shell
+decrypt_shell() {
+	startnetwork
+	dropbear -B -R -b /etc/dropbear/banner.crypto -P /run/dropbear.pid 2>&1 > /dev/null
+}
 
-#rescue_shell
-rescue_shell() {
-
-  #setting up network
+# setting up network
+startnetwork() {
 	/sbin/getmac
 	ifconfig eth0 up
-	udhcpc -t 5 -q -s /bin/simple.script
+	udhcpc -t 5 -q -s /bin/simple.script -p /run/udhcpc.pid
+}
 
-#start ssh	
-	dropbear -B -R -b /etc/dropbear/banner
-	echo "Something went wrong. Dropping to a shell."
+# rescue_shell
+rescue_shell() {
+
+# start ssh	
+	startnetwork
+	dropbear -B -R -b /etc/dropbear/banner.rescue -P /run/dropbear.pid 2>&1 > /dev/null
+	echo -e "\n Something went wrong. Dropping to a shell."
 
 # Run UART shell
 	exec 0</dev/console
 	exec 1>/dev/console
 	exec 2>/dev/console
-	exec setsid cttyhack sh
+	exec setsid cttyhack /bin/ash
 }
 
 
 ask_for_stop () {
 	key='boot'
-	read -r -p "### Press any key to stop and run shell... (10)" -n1 -t2 key
+	read -r -p "### Press any key to stop and run shell... (2)" -n1 -t2 key
 	if [ "$key" != 'boot' ] || [ $BUTTON_STATUS == 1 ]; then
 		rescue_shell
 	fi
 }
 
+boot () {
+echo -e "\n Unmounting and Switch to OS"
+        # Copy MAC
+        sleep 1
+        cp /mnt/config/mac_addr /mnt/root/etc
+	# kill running daemons
+	kill -9 `cat /run/dropbear.pid`
+	kill -9 `cat /run/udhcpc.pid` 
+        umount /mnt/config
+        umount /proc
+        umount /sys
+        umount /dev
+        exec switch_root /mnt/root /sbin/init
+}
 
 
-#Initial Raid
+# Initial Raid
 echo 'DEVICE /dev/sd??*' > /etc/mdadm.conf
 mdadm -Eb /dev/sd??* >> /etc/mdadm.conf
 mdadm -As --force
 sleep 5 # disk not ready?
 mdadm --assemble --scan
+
+# Inital LVM
+lvm vgscan --mknodes # creates /dev/mapper/control
+lvm lvchange -a ly VG/root
+lvm vgscan --mknodes # creates /dev/mapper/VG-root and /dev/VG/root
 
 # Mount the config files
 ubiattach /dev/ubi_ctrl -m 5
@@ -63,22 +89,19 @@ mount -t ubifs ubi0:config /mnt/config
 ask_for_stop
 mount -o rw $(findfs LABEL=rootfs)  /mnt/root
 
-# Clean up.
-ls mnt/root/sbin/init >/dev/null 2>&1
-if [ $?=0 ]; then
-        echo "Unmounting and Switch to OS"
-        # Copy MAC
-        sleep 1
-        cp /mnt/config/mac_addr /mnt/root/etc
-        umount /mnt/config
-        umount /proc
-        umount /sys
-        umount /dev
-        exec switch_root /mnt/root /sbin/init
+# Clean up and boot 
+if [ -h /mnt/root/sbin/init ]; then
+	boot
+#check for LUKS-devices
+ elif
+	blkid | grep -q crypto; then
+	decrypt_shell
+# wait until the device exists and is decrypted
+	while ! test -e /dev/mapper/cryptroot ; do
+     		sleep 2
+	done
+	mount -o rw $(findfs LABEL=rootfs)  /mnt/root
+	boot
  else
         rescue_shell
 fi
-
-# Boot the real thing.
-exec switch_root /mnt/root /sbin/init
-
