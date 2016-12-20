@@ -1,4 +1,4 @@
-#!/bin/busybox sh
+#!/bin/busybox ash
 # Initrd for WD Mycloud Mirror gen2 & Ex2 ultra
 # Boots from partition labeled "rootfs" 
 # (c) Carl Schiller; schreibcarl@gmail.com
