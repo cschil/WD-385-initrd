@@ -55,6 +55,15 @@ ask_for_stop () {
 	fi
 }
 
+#LVM init sequence
+initlvm () {
+lvm vgscan --mknodes # creates /dev/mapper/control
+lvm lvchange -a ly VG/root
+lvm vgscan --mknodes # creates /dev/mapper/VG-root and /dev/VG/root
+sleep 2
+}
+
+#Switchroot seqence
 boot () {
 echo -e "\n Unmounting and Switch to OS"
         # Copy MAC
@@ -70,7 +79,6 @@ echo -e "\n Unmounting and Switch to OS"
         exec switch_root /mnt/root /sbin/init
 }
 
-
 # Initial Raid
 echo 'DEVICE /dev/sd??*' > /etc/mdadm.conf
 mdadm -Eb /dev/sd??* >> /etc/mdadm.conf
@@ -78,15 +86,13 @@ mdadm -As --force
 sleep 5 # disk not ready?
 mdadm --assemble --scan
 
-# Inital LVM
-lvm vgscan --mknodes # creates /dev/mapper/control
-lvm lvchange -a ly VG/root
-lvm vgscan --mknodes # creates /dev/mapper/VG-root and /dev/VG/root
-
 # Mount the config files
 ubiattach /dev/ubi_ctrl -m 5
 sleep 2
 mount -t ubifs ubi0:config /mnt/config
+
+# Init LVM
+initlvm
 
 # Mount the root filesystem.
 ask_for_stop
@@ -103,6 +109,7 @@ if [ -h /mnt/root/sbin/init ]; then
 	while ! test -e /dev/mapper/cryptroot ; do
      		sleep 2
 	done
+	initlvm
 	mount -o rw $(findfs LABEL=rootfs)  /mnt/root
 	boot
  else
