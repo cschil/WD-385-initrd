@@ -58,7 +58,7 @@ ask_for_stop () {
 #LVM init sequence
 initlvm () {
 lvm vgscan --mknodes # creates /dev/mapper/control
-lvm lvchange -a ly
+lvm vgchange -a ly
 lvm vgscan --mknodes # creates /dev/mapper/VG-root and /dev/VG/root
 sleep 2
 }
