@@ -1,6 +1,5 @@
 ================Decrypt SHELL=============
 user        root
-password    blank
 ==========================================
   For boot please decrypt your encrypted 
          rootfs on $device with:
