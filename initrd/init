@@ -28,17 +28,17 @@ copyconfig() {
 # Start decryption shell
 decrypt_shell() {
   # Check which device encrypted
-  $cryptdev=$(blkid -l -o device -t TYPE=crypto_LUKS)
+  export cryptdev=$(blkid -l -o device -t TYPE=crypto_LUKS)
   echo device=$(blkid -l -o device -t TYPE=crypto_LUKS) >>/etc/profile      # add location of crytodevice to environment
   echo export device >>/etc/profile
   # Look for key on usb / hdd
-  if [ -h /ddev/disk/by-label/key ]; then
-    mount -o rw $(findfs LABEL=key) /mnt/key
-    wait
-    cryptsetup luksOpen --header /mnt/key/key.luks /root/key KEY
+  mount -o rw $(findfs LABEL=key) /mnt/key
+  wait
+  if [  -e /mnt/key/key.luks  ]; then
+    cryptsetup luksOpen $cryptdev cryptroot --key-file /mnt/key/key.luks
     # Look for key on nand
   elif [ -e /mnt/config/initrd/key.luks ]; then
-   cryptsetup luksOpen $device cryptroot --key-file /mnt/config/initrd/key.luks
+    cryptsetup luksOpen $cryptdev cryptroot --key-file /mnt/config/initrd/key.luks
   else
     startnetwork
     dropbear -B -p 2222 -b /etc/dropbear/banner.crypto -P /run/dropbear.pid 2>&1 >/dev/null
