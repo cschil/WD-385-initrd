@@ -37,10 +37,8 @@ decrypt_shell() {
     wait
     cryptsetup luksOpen --header /mnt/key/key.luks /root/key KEY
     # Look for key on nand
-  elif [ -h /mnt/config/initrd/key.luks ]; then
-    cryptsetup luksOpen --header /mnt/config/initrd/key.luks /root/key KEY
-    wait
-    cryptsetup --key-file /dev/mapper/lukskey luksOpen $cryptdev cryptroot 
+  elif [ -e /mnt/config/initrd/key.luks ]; then
+   cryptsetup luksOpen $device cryptroot --key-file /mnt/config/initrd/key.luks
   else
     startnetwork
     dropbear -B -p 2222 -b /etc/dropbear/banner.crypto -P /run/dropbear.pid 2>&1 >/dev/null
