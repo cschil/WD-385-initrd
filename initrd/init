@@ -1,5 +1,5 @@
 #!/bin/busybox ash
-# Initrd for WD Mycloud Mirror gen2 & Ex2 ultra
+# init-script for WD Mycloud Mirror gen2 & Ex2 ultra
 # Boots from partition labeled "rootfs"
 # (c) Carl Schiller; schreibcarl@gmail.com
 
@@ -19,10 +19,12 @@ echo /sbin/mdev >/proc/sys/kernel/hotplug
 mdev -s
 
 #copy customconfig from nand
-copyconfig() {
-  cp /mnt/config/initrd/shadow /etc/		#rootpasswd
-  #cp /mnt/config/initrd/ /etc/dropbear		#ssh_fingerprint
-  #cp /mnt/conifg/initrd				#
+setconfig() {
+  cp /mnt/config/initrd/shadow /etc/					  #rootpasswd
+  if ![ -e /mnt/config/initrd/authorized_keys ]; then  
+      touch /mnt/config/initrd/authorized_keys
+  fi
+  ln -s /mnt/config/initrd/authorized_keys /etc/dropbear/authorized_keys
 }
 
 # Start decryption shell
@@ -35,8 +37,8 @@ decrypt_shell() {
   mount -o rw $(findfs LABEL=key) /mnt/key
   wait
   if [  -e /mnt/key/key.luks  ]; then
-    cryptsetup luksOpen $cryptdev cryptroot --key-file /mnt/key/key.luks
-    # Look for key on nand
+    cryptsetup luksOpen $cryptdev cryptroot --key-file /mnt/key/key.luks   
+  # Look for key on nand
   elif [ -e /mnt/config/initrd/key.luks ]; then
     cryptsetup luksOpen $cryptdev cryptroot --key-file /mnt/config/initrd/key.luks
   else
@@ -54,11 +56,10 @@ startnetwork() {
 
 # rescue_shell
 rescue_shell() {
-
   # start ssh
   startnetwork
   dropbear -B -p 2222 -b /etc/dropbear/banner.rescue -P /run/dropbear.pid 2>&1 >/dev/null
-  echo -e "\n Something went wrong. Dropping to a shell."
+  echo -e "\n Something went wrong. Dropping to a shell.\n"
 
   # Run UART shell
   exec 0</dev/console
@@ -110,6 +111,7 @@ mdadm --assemble --scan
 ubiattach /dev/ubi_ctrl -m 5
 wait
 mount -t ubifs ubi0:config /mnt/config
+setconfig
 
 # Init LVM
 initlvm
@@ -141,10 +143,3 @@ if [ -h /mnt/root/sbin/init ]; then
 else
   rescue_shell
 fi
-
-if [ -h /mnt/root/sbin/init ]; then
-  boot
-else
-  rescue_shell
-fi
-

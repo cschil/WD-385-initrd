@@ -5,5 +5,8 @@ user        root
          rootfs on $device with:
 
 cryptsetup -T 5 luksOpen $device cryptroot
-
 ==========================================
+ recommended to change your root password 
+==========================================
+
+

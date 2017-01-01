@@ -1,4 +1,8 @@
-========RESCUE SHELL========
-user        root
-============================
-
+========RESCUE SHELL=========
+user         root
+=============================
+  Its recommended to change 
+     your root password 
+=============================
+to continue boot enter "boot"
+=============================
