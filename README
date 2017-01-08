@@ -1,0 +1,21 @@
+## Initrd for WD MyCloudMirror gen2 und Ex2 Ultra
+This custom initrd is for booting debian, ubuntu or other Linux Distibution
+on WD MCMg2 or Ex2U
+
+## Support
++ USB or SATA drive 
++ ext2,3,4, btrfs
++ raid 0,1 and LVM
++ LUKS-encrypted drive
++ ssh-rescue shell
+
+## Usage 
+Put OS on a partition labeled "rootfs" and OS should boot.
+With encryption passphrase or keyfile could be used. If keyfile unlock is used keyfile 
+"key.luks" has to be stored either on partion labeld "key" (usb or hdd) or in mnt/config/initrd 
+(nand: /dev/mtd5/initrd). If passphrase is used, a ssh-shell on port 2222 and user: root is 
+open and partiton can be unlocked with "cryptsetup -T 5 luksOpen $device cryptroot".
+
+If rootfs is not found or something else went wrong a ssh-shell is open on port 2222 with user root.
+Either you can enter shell with pressing reset-button while starting.  
+

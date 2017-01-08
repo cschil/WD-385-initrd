@@ -3,20 +3,12 @@
 # Boots from partition labeled "rootfs"
 # (c) Carl Schiller; schreibcarl@gmail.com
 
-# Creat folders and install Busybox
-/bin/busybox mkdir -p /dev /mnt/root /mnt/key /mnt/config /mnt/config/initrd /proc /root /usr/sbin /usr/bin /sbin /bin /sys /run
-/bin/busybox --install -s
-
-export PATH=/bin:/sbin:/usr/bin:/usr/sbin
-
-# Mount the /proc and /sys filesystems.
-mount -t proc none /proc
-mount -t sysfs none /sys
-mount -t devtmpfs none /dev
-
-# Adding mdev support
-echo /sbin/mdev >/proc/sys/kernel/hotplug
-mdev -s
+#-----------functions--------------
+# init gpio resetbutton
+resetbutton_init() {
+echo 50 > /sys/class/gpio/export
+echo 1 > /sys/class/gpio/gpio50/active_low
+}
 
 #copy customconfig from nand
 setconfig() {
@@ -56,10 +48,10 @@ startnetwork() {
 
 # rescue_shell
 rescue_shell() {
-  # start ssh
-  startnetwork
-  dropbear -B -p 2222 -b /etc/dropbear/banner.rescue -P /run/dropbear.pid 2>&1 >/dev/null
-  echo -e "\n Something went wrong. Dropping to a shell.\n"
+# start ssh
+startnetwork
+dropbear -B -p 2222 -b /etc/dropbear/banner.rescue -P /run/dropbear.pid 2>&1 >/dev/null
+echo -e "\n Something went wrong. Dropping to a shell.\n"
 
   # Run UART shell
   exec 0</dev/console
@@ -68,12 +60,18 @@ rescue_shell() {
   exec setsid cttyhack /bin/ash
 }
 
+#stop boot process
 ask_for_stop() {
-  key='boot'
-  read -r -p "### Press any key to stop and run shell... (2)" -n1 -t2 key
-  if [ "$key" != 'boot' ] || [ $BUTTON_STATUS == 1 ]; then
-    rescue_shell
-  fi
+i=5
+echo -n " Press any key or reset key to stop and run shell..."
+while [ $i -ge 1 ]; do
+   read -s -n1 -t1 key
+   if [ `cat /sys/class/gpio/gpio50/value` = 1 ] || ! [ -z $key  ]; then
+   rescue_shell
+   fi
+   echo -n $i".."
+   let i=$i-1
+done
 }
 
 #LVM init sequence
@@ -100,6 +98,23 @@ boot() {
   exec switch_root /mnt/root /sbin/init
 }
 
+#-----------init script--------------
+
+# Creat folders and install Busybox
+/bin/busybox mkdir -p /dev /mnt/root /mnt/key /mnt/config /mnt/config/initrd /proc /root /usr/sbin /usr/bin /sbin /bin /sys /run
+/bin/busybox --install -s
+
+export PATH=/bin:/sbin:/usr/bin:/usr/sbin
+
+# Mount the /proc and /sys filesystems.
+mount -t proc none /proc
+mount -t sysfs none /sys
+mount -t devtmpfs none /dev
+
+# Adding mdev support
+echo /sbin/mdev >/proc/sys/kernel/hotplug
+mdev -s
+
 # Initial Raid
 echo 'DEVICE /dev/sd??*' >/etc/mdadm.conf
 mdadm -Eb /dev/sd??* >>/etc/mdadm.conf
@@ -117,13 +132,16 @@ setconfig
 initlvm
 
 # Mount the root filesystem.
+resetbutton_init
 ask_for_stop
 mount -o rw $(findfs LABEL=rootfs) /mnt/root
+
 
 # Clean up and boot
 if [ -h /mnt/root/sbin/init ]; then
   boot
 fi
+
 #check for LUKS-devices
 if
   blkid | grep -q crypto
