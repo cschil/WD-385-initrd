@@ -17,5 +17,5 @@ With encryption passphrase or keyfile could be used. If keyfile unlock is used k
 open and partiton can be unlocked with "cryptsetup -T 5 luksOpen $device cryptroot".
 
 If rootfs is not found or something else went wrong a ssh-shell is open on port 2222 with user root.
-Either you can enter shell with pressing reset-button while starting.  
+You can enter shell well over UART or by pressing reset-button while booting.  
 
