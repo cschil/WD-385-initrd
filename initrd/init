@@ -4,7 +4,7 @@
 # (c) Carl Schiller; schreibcarl@gmail.com
 
 #-----------functions--------------
-# init gpio resetbutton
+# init gpio
 resetbutton_init() {
 echo 50 > /sys/class/gpio/export
 echo 1 > /sys/class/gpio/gpio50/active_low
@@ -13,13 +13,13 @@ echo 1 > /sys/class/gpio/gpio50/active_low
 #copy customconfig from nand
 setconfig() {
   cp /mnt/config/initrd/shadow /etc/					  #rootpasswd
-  if ![ -e /mnt/config/initrd/authorized_keys ]; then  
+  if ! [ -e /mnt/config/initrd/authorized_keys ]; then  
       touch /mnt/config/initrd/authorized_keys
   fi
   ln -s /mnt/config/initrd/authorized_keys /etc/dropbear/authorized_keys
 }
 
-# Start decryption shell
+# Start decryption filesystem
 decrypt_shell() {
   # Check which device encrypted
   export cryptdev=$(blkid -l -o device -t TYPE=crypto_LUKS)
@@ -29,14 +29,24 @@ decrypt_shell() {
   mount -o rw $(findfs LABEL=key) /mnt/key
   wait
   if [  -e /mnt/key/key.luks  ]; then
-    cryptsetup luksOpen $cryptdev cryptroot --key-file /mnt/key/key.luks   
-  # Look for key on nand
+    cryptsetup luksOpen $cryptdev cryptroot --key-file /mnt/key/key.luks
+    check_unlock
+    # Look for key on nand
   elif [ -e /mnt/config/initrd/key.luks ]; then
-    cryptsetup luksOpen $cryptdev cryptroot --key-file /mnt/config/initrd/key.luks
+    cryptsetup luksOpen $cryptdev cryptroot --key-file /mnt/config/initrd/key.luks || rescue_shell
+    check_unlock
   else
     startnetwork
     dropbear -B -p 2222 -b /etc/dropbear/banner.crypto -P /run/dropbear.pid 2>&1 >/dev/null
   fi
+}
+# Check if key-decrypt was sucessfull
+check_unlock(){
+wait    
+if ! [ -e /dev/mapper/cryptroot ]; then
+    echo -e "Unlock check failed,..."
+    rescue_shell
+fi
 }
 
 # setting up network
@@ -60,7 +70,7 @@ echo -e "\n Something went wrong. Dropping to a shell.\n"
   exec setsid cttyhack /bin/ash
 }
 
-#stop boot process
+#ask for stop boot process
 ask_for_stop() {
 i=5
 echo -n " Press any key or reset key to stop and run shell..."
@@ -72,6 +82,7 @@ while [ $i -ge 1 ]; do
    echo -n $i".."
    let i=$i-1
 done
+echo -e "\n"
 }
 
 #LVM init sequence
@@ -84,13 +95,13 @@ initlvm() {
 
 #Switchroot seqence
 boot() {
-  echo -e "\n Unmounting and Switch to OS"
+  echo -e "\n Unmounting and Switch to OS\n"
   # Copy MAC
   wait
   cp /mnt/config/mac_addr /mnt/root/etc
   # kill running daemons
-  kill -9 $(cat /run/dropbear.pid)
-  kill -9 $(cat /run/udhcpc.pid)
+  kill -9 $(cat /run/dropbear.pid) 2>&1 >/dev/null
+  kill -9 $(cat /run/udhcpc.pid) 2>&1 >/dev/null
   umount /mnt/config
   umount /proc
   umount /sys
@@ -134,11 +145,11 @@ initlvm
 # Mount the root filesystem.
 resetbutton_init
 ask_for_stop
-mount -o rw $(findfs LABEL=rootfs) /mnt/root
+mount -o rw $(findfs LABEL=rootfs) /mnt/root 2>&1 >/dev/null
 
 
 # Clean up and boot
-if [ -h /mnt/root/sbin/init ]; then
+if [ -h /mnt/root/sbin/init -o -e /mnt/root/sbin/init ]; then
   boot
 fi
 
@@ -155,8 +166,8 @@ then
 fi
 
 initlvm
-mount -o rw $(findfs LABEL=rootfs) /mnt/root
-if [ -h /mnt/root/sbin/init ]; then
+mount -o rw $(findfs LABEL=rootfs) /mnt/root 2>&1 >/dev/null
+if [ -h /mnt/root/sbin/init -o -e /mnt/root/sbin/init ]; then
   boot
 else
   rescue_shell
