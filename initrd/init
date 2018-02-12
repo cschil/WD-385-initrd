@@ -99,6 +99,8 @@ boot() {
   # Copy MAC
   wait
   cp /mnt/config/mac_addr /mnt/root/etc
+  # remount rootfs readonly for filesystem check to work
+  mount -o remount,ro /mnt/root
   # kill running daemons
   kill -9 $(cat /run/dropbear.pid) 2>&1 >/dev/null
   kill -9 $(cat /run/udhcpc.pid) 2>&1 >/dev/null

@@ -45,6 +45,8 @@ boot() {
   # Copy MAC
   wait
   cp /mnt/config/mac_addr /mnt/root/etc
+  # remount rootfs readonly for filesystem check to work
+  mount -o remount,ro /mnt/root
   # kill running daemons
   kill -9 $(cat /run/dropbear.pid)
   kill -9 $(cat /run/udhcpc.pid)
@@ -58,7 +60,7 @@ boot() {
 }
 
 # Clean up and boot
-if [ -h /mnt/root/sbin/init ]; then
+if [ -h /mnt/root/sbin/init -o -e /mnt/root/sbin/init ]; then
   boot
 fi
 #check for LUKS-devices
@@ -68,7 +70,7 @@ if
 fi
 initlvm
 mount -o rw $(findfs LABEL=rootfs) /mnt/root
-if [ -h /mnt/root/sbin/init ]; then
+if [ -h /mnt/root/sbin/init -o -e /mnt/root/sbin/init ]; then
   boot
 else
   echo -e "Opps, boot failed"
